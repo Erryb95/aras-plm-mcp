@@ -6,9 +6,10 @@ Notable changes to this project. Format loosely follows
 
 ## [Unreleased]
 
-## [0.1.0]
+## [0.1.0] — 2026-08-22
 
-First public release.
+First public release. Verified against a live Aras Innovator 2025 (14.35.0)
+instance with the Innovator Solutions template.
 
 ### Added
 
@@ -34,10 +35,16 @@ First public release.
 
 ### Known limits
 
-Reading file content from the vault works, through the OData media resource.
-Uploading does not, and three other capabilities are unreachable from an
-external client. Each affected tool
+Four capabilities are unreachable from an external client. Each affected tool
 declares the limit and points at an alternative rather than failing opaquely:
-vault file upload, effectivity expressions on a BOM, Query Builder execution,
-and JavaScript-based reports. Evidence for each is in
-[docs/field-notes.md](docs/field-notes.md).
+
+- uploading files to the vault (**reading** their content works, through the
+  OData media resource `File('<id>')/$value`)
+- effectivity expressions on a BOM
+- executing Query Builder queries
+- JavaScript-based reports
+
+Evidence for each is in [docs/field-notes.md](docs/field-notes.md).
+
+[Unreleased]: https://github.com/Erryb95/aras-plm-mcp/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Erryb95/aras-plm-mcp/releases/tag/v0.1.0
