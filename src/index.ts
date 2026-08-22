@@ -425,7 +425,9 @@ server.tool(
     "download dal vault. NOTA: il caricamento di file NON e' possibile da un client esterno — " +
     "Aras rifiuta la creazione di File senza contenuto vaultato ('File Item cannot be added'), " +
     "e le vie documentate sono solo JavaScript di client o C# di server. I file vanno caricati " +
-    "dall'interfaccia Aras; da qui si leggono e si scaricano.",
+    "dall'interfaccia Aras. ATTENZIONE: questo tool restituisce METADATI e un URL di download, " +
+    "non il contenuto: il server non scarica ne' legge il file. Per il contenuto serve seguire " +
+    "l'URL con un client autenticato.",
   {
     itemType: z.enum(["Document", "CAD"]),
     id: z.string().describe("id del Document o del CAD"),

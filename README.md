@@ -205,7 +205,11 @@ opaquely.
 | Executing Query Builder queries | No AML action runs a saved `qry_QueryDefinition` from outside |
 | JavaScript-based reports | `Method type not supported: JavaScript` — it is client code |
 
-Reading and downloading vault files works. Only uploading does not.
+Reading file **metadata** works — name, size, MIME type, checksum, and a
+ready-made vault download URL. The server does **not** fetch or parse the file
+content itself, and that download path is untested: the instance this was built
+against has no vaulted files, precisely because upload does not work from here.
+Treat the vault as a blind spot, not a solved problem.
 
 [`docs/field-notes.md`](docs/field-notes.md) is the field log: every defect the live
 testing surfaced, and the exact error that proves each limit.
