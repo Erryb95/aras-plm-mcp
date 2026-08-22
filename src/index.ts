@@ -633,19 +633,41 @@ server.tool(
       }
 
       const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      const r = await aml.apply(
-        `<Item type="Activity" action="EvaluateActivity">` +
-        `<Activity>${esc(activityId)}</Activity>` +
-        `<ActivityAssignment>${esc(assignmentId)}</ActivityAssignment>` +
-        `<Paths><Path id="${scelta["id"]}">${esc(String(scelta["name"]))}</Path></Paths>` +
-        `<DelegateTo>0</DelegateTo>` +
-        `<Tasks/><Variables/><Authentication mode=""/>` +
-        `<Comments>${esc(commenti ?? "")}</Comments>` +
-        // Obbligatorio: senza, Aras risponde con un generico "internal error".
-        `<Complete>1</Complete>` +
-        `</Item>`
-      );
-      return json({ votato: true, via: scelta["name"], risposta: r.items.slice(0, 3) });
+      try {
+        const r = await aml.apply(
+          `<Item type="Activity" action="EvaluateActivity">` +
+          `<Activity>${esc(activityId)}</Activity>` +
+          `<ActivityAssignment>${esc(assignmentId)}</ActivityAssignment>` +
+          `<Paths><Path id="${scelta["id"]}">${esc(String(scelta["name"]))}</Path></Paths>` +
+          `<DelegateTo>0</DelegateTo>` +
+          `<Tasks/><Variables/><Authentication mode=""/>` +
+          `<Comments>${esc(commenti ?? "")}</Comments>` +
+          // Obbligatorio: senza, Aras risponde con un generico "internal error".
+          `<Complete>1</Complete>` +
+          `</Item>`
+        );
+        return json({ votato: true, via: scelta["name"], risposta: r.items.slice(0, 3) });
+      } catch (e) {
+        // "User is not from allowed identity" e' un rifiuto legittimo, non un
+        // guasto: chi vota deve appartenere all'identita' assegnataria. Senza
+        // dire QUALE, il messaggio non aiuta a rimediare — come gia' fa la delega.
+        const testo = e instanceof Error ? e.message : String(e);
+        if (!/not from allowed identity/i.test(testo)) throw e;
+        const asg = await client.query<Record<string, unknown>>("Activity Assignment", {
+          filter: `source_id eq '${activityId}'`, select: ["id", "related_id"], top: 20,
+        }).catch(() => ({ value: [] as Array<Record<string, unknown>> }));
+        const identita = asg.value.map((a) => readItemRef(a, "related_id")?.keyedName).filter(Boolean);
+        const mie = await identitaCorrenti(client).catch(() => [] as string[]);
+        return json({
+          votato: false,
+          motivo: "Aras rifiuta il voto: l'utente non appartiene all'identita' assegnataria.",
+          assegnataA: identita,
+          tueIdentita: mie,
+          rimedio: identita.length
+            ? `Iscrivi la tua identita' a "${identita[0]}" con aras_manage_membership, oppure delega con aras_delegate_activity.`
+            : "Verifica le assegnazioni con aras_get_workflow.",
+        });
+      }
     })
 );
 

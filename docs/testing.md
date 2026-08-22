@@ -64,6 +64,23 @@ That distinction has already paid for itself. A defect where
 invisible to a per-tool test — the tool returned an id, and an id looks like
 success. Only asserting the *outcome of the flow* caught it.
 
+## Coverage
+
+Two claims, both checkable from the source rather than asserted:
+
+- **All 69 registered tools are called by at least one suite.**
+- **All 25 write tools are exercised performing a real write**, not merely
+  refusing while read-only.
+
+The second one is the claim worth auditing. Two tools once passed the first test
+and failed the second: `aras_vote_activity` only ever hit the read-only refusal
+path, and `aras_release_item` had only ever run with `dryRun: true`. Both now
+execute for real in `test-writepath.mjs`, on a throwaway part — the suite grants
+itself membership in the assignee identity, votes, and gives the membership back.
+
+`aras_ping` reports `readOnly` in its output but does not write; it is a read
+tool.
+
 ## Writing a new assertion
 
 ```js

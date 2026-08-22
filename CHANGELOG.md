@@ -27,8 +27,9 @@ First public release.
 - Read-only by default; `dryRun` on by default for bulk operations.
 - Deletion planning that reports what blocks it, and `-1` for relationships it
   could not verify.
-- Eleven test suites against a live instance: 244 assertions plus a 39-step
-  demo script.
+- Eleven test suites against a live instance: 251 assertions plus a 39-step
+  demo script. Every tool is exercised by at least one suite, and every write
+  tool performs a real write rather than only refusing while read-only.
 - CI on Node 20 and 22: type check, build, and a real MCP `initialize` handshake.
 
 ### Known limits

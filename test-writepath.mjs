@@ -140,6 +140,63 @@ try {
   const cfg = await call("aras_get_effectivity_config");
   check("il modello compare in configurazione", (cfg.modelli ?? []).some((m) => m.nome === "ZZW-MOD"));
 
+  // Due tool restavano provati solo a vuoto: aras_vote_activity finiva sempre
+  // sul rifiuto in sola lettura, e aras_release_item solo in dryRun. Qui
+  // vengono eseguiti davvero, su una Part usa e getta.
+  console.log("\n=== 7b. Voto diretto e rilascio reale ===");
+  {
+    const p = await call("aras_create_part", { item_number: "ZZW-3000", name: "Rilascio di prova", make_buy: "Make" });
+    const pid = p.item?.id ?? p.id ?? (await q1("Part", "item_number eq 'ZZW-3000'"))?.id;
+    check("Part di prova creata", !!pid, JSON.stringify(p).slice(0, 200));
+
+    const w = await call("aras_get_workflow", { itemId: pid });
+    const att = w.processi?.[0]?.dettaglioAttivita?.find((a) => a.stato === "Active");
+    const asg = att?.assegnazioni?.[0];
+    check("l'approvazione e' attiva con un'assegnazione", !!att && !!asg, JSON.stringify(att?.nome));
+
+    if (att && asg) {
+      // Chi vota deve appartenere all'identita' assegnataria. La suite se ne
+      // occupa da se' e restituisce il permesso alla fine, invece di
+      // pretendere che l'ambiente sia gia' configurato.
+      const gruppo = asg.identita;
+      const mie = await call("aras_get_my_identities");
+      const giaDentro = (mie.identita ?? mie.elenco ?? []).some((i) => (i.nome ?? i) === gruppo);
+      const io_ = (mie.identita ?? mie.elenco ?? []).map((i) => i.nome ?? i).find((n) => /admin|user/i.test(n));
+      let concesso = false;
+      if (!giaDentro && io_ && gruppo) {
+        const m = await call("aras_manage_membership", { gruppo, membro: io_, azione: "aggiungi" });
+        concesso = m.eseguito !== false;
+      }
+      check("chi vota appartiene all'identita' assegnataria", giaDentro || concesso,
+        JSON.stringify({ gruppo, io: io_, giaDentro, concesso }));
+
+      const v = await call("aras_vote_activity", {
+        activityId: att.id, assignmentId: asg.id, path: "Approva",
+        commenti: "voto diretto di collaudo",
+      });
+      check("aras_vote_activity ESEGUITO davvero", v.votato === true, JSON.stringify(v).slice(0, 260));
+
+      const w2 = await call("aras_get_workflow", { itemId: pid });
+      check("il processo si e' chiuso dopo il voto", w2.processi?.[0]?.stato === "Closed",
+        JSON.stringify(w2.processi?.[0]?.stato));
+
+      if (concesso) await call("aras_manage_membership", { gruppo, membro: io_, azione: "rimuovi" });
+    }
+
+    const rel = await call("aras_release_item", { itemType: "Part", id: pid, statoTarget: "Released", dryRun: false });
+    check("aras_release_item ESEGUITO davvero", rel.rilasciato === true || rel.statoFinale === "Released",
+      JSON.stringify(rel).slice(0, 260));
+
+    // La promozione su un ItemType versionabile puo' cambiare l'id: si cerca per codice.
+    const dopo = await q1("Part", "item_number eq 'ZZW-3000'", ["id", "state"]);
+    check("la Part risulta Released", dopo?.state === "Released", JSON.stringify(dopo));
+
+    const finale = await call("aras_query_items", { itemType: "Part", filter: "item_number eq 'ZZW-3000'", select: ["id"], top: 5 });
+    for (const it of finale.items ?? []) {
+      await call("aras_delete_item", { itemType: "Part", id: it.id, modo: "delete", conferma: true, ignoraAvvertenze: true });
+    }
+  }
+
   console.log("\n=== 8. Pulizia e integrita' ===");
   await pulisci(false);
   const resta = await call("aras_query_items", { itemType: "Part", filter: "startswith(item_number,'ZZW-')", select: ["id"], top: 10 });

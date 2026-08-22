@@ -3,8 +3,9 @@
 An MCP server for **Aras Innovator PLM** that knows the schema instead of guessing it.
 
 69 tools over OData **and** AML. Tested against a live Aras Innovator 2025 (14.35.0)
-instance: **244 assertions across ten suites, plus a 39-step demo script executed
-end to end.**
+instance: **251 assertions across ten suites, plus a 39-step demo script executed
+end to end. Every one of the 69 tools is exercised by at least one suite, and
+every write tool is exercised performing a real write.**
 
 ---
 
