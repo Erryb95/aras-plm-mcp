@@ -10,6 +10,7 @@ import { explodeBom, BomNode } from "./aras/bom.js";
 import { whereUsed, documentsOf, amlOf, changeImpact, membersOf, filesOf, WhereUsedNode } from "./aras/graph.js";
 import { AmlClient } from "./aras/aml.js";
 import { readItemRef } from "./aras/odata.js";
+import { scaricaFile, interpreta } from "./aras/files.js";
 import { crossSearch, DEFAULT_SEARCH_TYPES } from "./aras/search.js";
 import { revisionsOf, newRevision, planDelete } from "./aras/revisions.js";
 import { workflowOf, activitiesOf, inBasketOf } from "./aras/workflow.js";
@@ -44,6 +45,17 @@ async function guard(fn: () => Promise<string>) {
 }
 
 const json = (v: unknown) => JSON.stringify(v, null, 2);
+
+/** Come guard, ma il chiamante decide i blocchi: serve per restituire immagini. */
+type Blocco = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+async function guardBlocchi(fn: () => Promise<Blocco[]>) {
+  try {
+    return { content: await fn() };
+  } catch (e) {
+    const msg = e instanceof ArasError ? e.message : e instanceof Error ? e.message : String(e);
+    return { content: [{ type: "text" as const, text: `Errore: ${msg}` }], isError: true };
+  }
+}
 
 // ---------------------------------------------------------------- connessione
 
@@ -184,6 +196,42 @@ server.tool(
 );
 
 // ------------------------------------------------------------- relazioni/BOM
+
+server.tool(
+  "aras_read_file",
+  "LEGGE IL CONTENUTO di un file del vault, non solo i metadati. Scarica dalla media resource " +
+    "OData (File('<id>')/$value) con ripiego sull'endpoint del vault. Restituisce il testo per " +
+    "i formati testuali, il testo estratto per i PDF che ne contengono, e l'immagine stessa per " +
+    "PNG/JPEG/GIF/WebP, cosi' che possa essere guardata. Per un PDF scansionato dice che " +
+    "servirebbe un OCR invece di restituire il vuoto. Usa aras_get_files per trovare l'id.",
+  {
+    fileId: z.string().describe("id del File, da aras_get_files"),
+    maxCaratteri: z.number().int().min(500).max(200000).default(20000)
+      .describe("Limite del testo restituito"),
+  },
+  async ({ fileId, maxCaratteri }) =>
+    guardBlocchi(async () => {
+      const meta = await client.getById<Record<string, unknown>>("File", fileId,
+        ["id", "filename", "file_size", "mimetype", "checksum"]).catch(() => null);
+      const { buf, via, contentType } = await scaricaFile(client, cfg.baseUrl, cfg.database, fileId);
+      const mime = (meta?.["mimetype"] as string) ?? contentType;
+      const nome = (meta?.["filename"] as string) ?? null;
+      const r = interpreta(buf, mime, nome, maxCaratteri);
+
+      const testa = {
+        id: fileId, filename: nome, mimetype: mime, bytes: buf.length, via,
+        genere: r.genere,
+        ...(r.troncato ? { troncato: true, notaTroncamento: `Mostrati i primi ${maxCaratteri} caratteri.` } : {}),
+        ...(r.nota ? { nota: r.nota } : {}),
+        ...(meta?.["checksum"] ? { checksum: meta["checksum"] } : {}),
+      };
+
+      const blocchi: Blocco[] = [{ type: "text", text: json(testa) }];
+      if (r.testo) blocchi.push({ type: "text", text: r.testo });
+      if (r.base64 && mime) blocchi.push({ type: "image", data: r.base64, mimeType: mime });
+      return blocchi;
+    })
+);
 
 server.tool(
   "aras_get_relationships",

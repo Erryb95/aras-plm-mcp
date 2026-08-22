@@ -11,6 +11,7 @@ let buf = "", id = 1; const p = new Map();
 c.stdout.on("data", (d) => { buf += d; let i; while ((i = buf.indexOf("\n")) >= 0) { const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!l) continue; let m; try { m = JSON.parse(l) } catch { continue } if (m.id && p.has(m.id)) { p.get(m.id)(m); p.delete(m.id) } } });
 const rpc = (me, pa) => new Promise((r, j) => { const i = id++; p.set(i, r); c.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: i, method: me, params: pa }) + "\n"); setTimeout(() => j(new Error("timeout " + me)), 180000) });
 const call = async (n, a = {}) => { const r = await rpc("tools/call", { name: n, arguments: a }); const t = r.result?.content?.[0]?.text ?? JSON.stringify(r.error); try { return JSON.parse(t) } catch { return { _testo: t } } };
+const callBlocchi = async (n, a = {}) => (await rpc("tools/call", { name: n, arguments: a })).result?.content ?? [];
 let ok = 0, ko = 0;
 const check = (n, cnd, d = "") => { if (cnd) { ok++; console.log(`  OK   ${n}`) } else { ko++; console.log(`  FAIL ${n}  ${String(d).slice(0, 200)}`) } };
 
@@ -147,6 +148,32 @@ try {
   check("elementi di prova rimossi", (resta.totaleCorrispondenti ?? 0) === 0, `rimasti ${resta.totaleCorrispondenti}`);
   const acme = await call("aras_query_items", { itemType: "Part", filter: "startswith(item_number,'PMP-')", select: ["id"], top: 50 });
   check("dati ACME intatti", (acme.totaleCorrispondenti ?? 0) === 8, String(acme.totaleCorrispondenti));
+
+  // Il contenuto dei file si legge davvero, non e' piu' solo un URL. Su
+  // un'istanza col vault vuoto il blocco lo dichiara invece di fallire: da qui
+  // il caricamento non e' possibile, quindi non puo' prepararsi il dato.
+  console.log("\n=== 10. Lettura del contenuto di un file ===");
+  {
+    const fl = await call("aras_query_items", { itemType: "File", select: ["id", "filename", "mimetype"], top: 5 });
+    const primo = (fl.items ?? [])[0];
+    if (!primo) {
+      console.log("  vault vuoto su questa istanza: blocco non applicabile");
+      check("lettura file: nessun file da leggere, dichiarato", true);
+    } else {
+      const blocchi = await callBlocchi("aras_read_file", { fileId: primo.id, maxCaratteri: 5000 });
+      let testa = {};
+      try { testa = JSON.parse(blocchi[0]?.text ?? "{}"); } catch {}
+      const testo = blocchi.filter((b) => b.type === "text").slice(1).map((b) => b.text).join("\n");
+      const immagine = blocchi.some((b) => b.type === "image");
+      console.log(`  ${primo.filename} (${primo.mimetype}) -> genere ${testa.genere}, via ${testa.via}, ${testa.bytes} byte`);
+      if (testo) console.log(`  prima riga estratta: ${testo.split("\n")[0].slice(0, 70)}`);
+      check("il file viene scaricato", (testa.bytes ?? 0) > 0, JSON.stringify(testa).slice(0, 200));
+      check("il genere e' riconosciuto", ["testo", "pdf", "immagine", "binario"].includes(testa.genere), String(testa.genere));
+      check("contenuto estratto, oppure limite dichiarato",
+        !!testo || immagine || !!testa.nota,
+        JSON.stringify({ genere: testa.genere, nota: testa.nota }).slice(0, 200));
+    }
+  }
 
   console.log(`\n${"=".repeat(50)}\n${ok} passati, ${ko} falliti`);
 } catch (e) { console.log("ERRORE:", e.message); process.exitCode = 1 }

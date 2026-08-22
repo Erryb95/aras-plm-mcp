@@ -2,9 +2,9 @@
 
 An MCP server for **Aras Innovator PLM** that knows the schema instead of guessing it.
 
-69 tools over OData **and** AML. Tested against a live Aras Innovator 2025 (14.35.0)
-instance: **251 assertions across ten suites, plus a 39-step demo script executed
-end to end. Every one of the 69 tools is exercised by at least one suite, and
+70 tools over OData **and** AML. Tested against a live Aras Innovator 2025 (14.35.0)
+instance: **254 assertions across ten suites, plus a 39-step demo script executed
+end to end. Every one of the 70 tools is exercised by at least one suite, and
 every write tool is exercised performing a real write.**
 
 ---
@@ -60,11 +60,11 @@ the log says `Workflow: EvaluateActivity: Complete value not found`.
 </details>
 
 <details>
-<summary><b>Reading and navigation</b> — 13</summary>
+<summary><b>Reading and navigation</b> — 14</summary>
 
 `aras_query_items`, `aras_get_item`, `aras_get_relationships`, `aras_get_bom`,
 `aras_where_used`, `aras_get_documents`, `aras_get_aml`, `aras_get_files`,
-`aras_get_history`, `aras_get_revisions`, `aras_get_my_identities`,
+`aras_read_file`, `aras_get_history`, `aras_get_revisions`, `aras_get_my_identities`,
 `aras_get_identity_members`, `aras_export_aml`
 
 </details>
@@ -205,11 +205,12 @@ opaquely.
 | Executing Query Builder queries | No AML action runs a saved `qry_QueryDefinition` from outside |
 | JavaScript-based reports | `Method type not supported: JavaScript` — it is client code |
 
-Reading file **metadata** works — name, size, MIME type, checksum, and a
-ready-made vault download URL. The server does **not** fetch or parse the file
-content itself, and that download path is untested: the instance this was built
-against has no vaulted files, precisely because upload does not work from here.
-Treat the vault as a blind spot, not a solved problem.
+Reading, on the other hand, works and is verified. `aras_read_file` downloads
+the content through the OData media resource (`File('<id>')/$value`), falling
+back to the vault endpoint, and hands back something readable: text for text
+formats, extracted text for PDFs that contain any, and the image itself for
+PNG/JPEG/GIF/WebP so it can actually be looked at. A scanned drawing says it
+would need OCR rather than returning an empty string.
 
 [`docs/field-notes.md`](docs/field-notes.md) is the field log: every defect the live
 testing surfaced, and the exact error that proves each limit.

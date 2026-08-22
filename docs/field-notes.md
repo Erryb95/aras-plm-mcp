@@ -1,8 +1,8 @@
 # Field notes
 
 What live testing against a real Aras Innovator 2025 instance actually surfaced:
-the defects it found in this server, the behaviours of Aras that cost hours, and
-four things that genuinely cannot be done from an external client.
+the defects it found in this server, the behaviours of Aras that cost hours, one
+limit that turned out not to be one, and three that genuinely are.
 
 This file exists because a project that only publishes what works is not telling
 you enough to trust it.
@@ -104,6 +104,33 @@ without the role the transition requires gives
 `failed to get the transition to promote`. The second one reads as though the
 transition does not exist; it is a permission.
 
+## Reading file content: solved
+
+The README used to claim that downloading vault files worked. It did not — the
+server handed back a URL and nothing fetched it — and the claim had never been
+tested, because the instance held zero File items. Upload is blocked from
+outside, so there had never been a file to download.
+
+Resolved by uploading one through the Aras interface and then measuring. **Two
+routes both return the bytes**, with the same OAuth token the rest of the server
+uses:
+
+| Route | Result |
+|---|---|
+| `GET {baseUrl}/Server/OData/File('<id>')/$value` | 200, correct `Content-Type`, exact bytes |
+| `GET {baseUrl}/vault/vaultserver.aspx?dbName=..&fileId=..` | 200, identical |
+
+The OData media resource is the one used, because it goes through the same
+client and token as everything else; the vault endpoint stays as a fallback,
+since on installations with a remote vault it is the only one that answers.
+
+`aras_read_file` builds on that: text for text formats, extracted text for PDFs,
+and the image itself for PNG/JPEG/GIF/WebP so a model can look at it. PDF text
+extraction is dependency-free — `zlib` inflates the `FlateDecode` content
+streams and the `Tj`/`TJ` operators are read out of them. A scanned drawing has
+no text operators, and the tool says it would need OCR rather than returning an
+empty string and letting the caller assume the page was blank.
+
 ---
 
 ## Verified limits
@@ -113,16 +140,13 @@ the limit and points at an alternative instead of failing opaquely.
 
 | Limit | Evidence |
 |---|---|
-| Uploading files to the vault | Six distinct attempts, all rejected: `File Item cannot be added`, `Can't bind model`. The Programmer's Guide documents only client-side JavaScript (`aras.vault.selectFile`) and server-side C# (`setFileProperty`, taking a path local to the **server**) |
+| **Uploading** files to the vault | Six distinct attempts, all rejected: `File Item cannot be added`, `Can't bind model`. The Programmer's Guide documents only client-side JavaScript (`aras.vault.selectFile`) and server-side C# (`setFileProperty`, taking a path local to the **server**). Reading is a different story — see below |
 | Effectivity expressions on a BOM | `definition` is an undocumented XML dialect; Aras answers `'named-constant' or 'constant' node must be presented` |
 | Executing Query Builder queries | No AML action runs a saved query definition from outside |
 | JavaScript-based reports | `Method type not supported: JavaScript` — it is client code |
 
-Reading file **metadata** works — name, size, MIME type, checksum, and a
-ready-made vault download URL. The server does **not** fetch or parse the file
-content itself, and that download path is untested: the instance this was built
-against has no vaulted files, precisely because upload does not work from here.
-Treat the vault as a blind spot, not a solved problem.
+Only **uploading** is blocked. Reading file content works and is verified —
+see the section above.
 
 ---
 
@@ -131,7 +155,7 @@ Treat the vault as a blind spot, not a solved problem.
 | Area | Tools | Status |
 |---|---|---|
 | Connection and discovery | 5 | verified |
-| Reading and navigation | 13 | verified |
+| Reading and navigation | 14 | verified (including file content) |
 | Product and BOM | 7 | verified |
 | Change and workflow | 7 | verified |
 | Revisions and deletion | 4 | verified |

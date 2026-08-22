@@ -68,7 +68,7 @@ success. Only asserting the *outcome of the flow* caught it.
 
 Two claims, both checkable from the source rather than asserted:
 
-- **All 69 registered tools are called by at least one suite.**
+- **All 70 registered tools are called by at least one suite.**
 - **All 25 write tools are exercised performing a real write**, not merely
   refusing while read-only.
 
