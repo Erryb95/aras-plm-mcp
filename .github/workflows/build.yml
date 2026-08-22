@@ -1,0 +1,54 @@
+# La build e il controllo dei tipi girano ovunque. Le undici suite no: parlano
+# con un'istanza Aras Innovator reale, quindi restano da lanciare a mano contro
+# la propria. Meglio dichiararlo che simulare una copertura che qui non c'e'.
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Compila e controlla i tipi
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Il server si avvia e parla MCP
+        run: |
+          node -e "
+            const { spawn } = require('node:child_process');
+            const c = spawn(process.execPath, ['dist/index.js'], { stdio: ['pipe','pipe','pipe'] });
+            let out = '';
+            c.stdout.on('data', d => out += d);
+            c.stdin.write(JSON.stringify({
+              jsonrpc:'2.0', id:1, method:'initialize',
+              params:{protocolVersion:'2024-11-05',capabilities:{},clientInfo:{name:'ci',version:'1'}}
+            }) + '\n');
+            setTimeout(() => {
+              c.kill();
+              const r = JSON.parse(out.split('\n').find(l => l.trim()));
+              if (!r.result?.serverInfo) { console.error('nessuna risposta MCP valida'); process.exit(1); }
+              console.log('MCP ok:', r.result.serverInfo.name, r.result.serverInfo.version);
+            }, 4000);
+          "
+
+      - name: Le suite sono sintatticamente valide
+        run: for f in test-*.mjs tools/*.mjs; do node --check "$f"; done

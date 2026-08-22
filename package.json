@@ -1,0 +1,27 @@
+{
+  "name": "aras-plm-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Aras Innovator PLM — schema-aware access to Parts, BOMs, Documents and Changes",
+  "type": "module",
+  "bin": {
+    "aras-plm-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "probe": "node dist/probe.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}
