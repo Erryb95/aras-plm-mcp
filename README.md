@@ -2,9 +2,9 @@
 
 An MCP server for **Aras Innovator PLM** that knows the schema instead of guessing it.
 
-70 tools over OData **and** AML. Tested against a live Aras Innovator 2025 (14.35.0)
-instance: **254 assertions across ten suites, plus a 39-step demo script executed
-end to end. Every one of the 70 tools is exercised by at least one suite, and
+71 tools over OData **and** AML. Tested against a live Aras Innovator 2025 (14.35.0)
+instance: **260 assertions across ten suites, plus a 39-step demo script executed
+end to end. Every one of the 71 tools is exercised by at least one suite, and
 every write tool is exercised performing a real write.**
 
 ---
@@ -47,7 +47,7 @@ the log says `Workflow: EvaluateActivity: Complete value not found`.
 ## Tools
 
 <details>
-<summary><b>Discovery and schema</b> — 5</summary>
+<summary><b>Discovery and schema</b> — 6</summary>
 
 | Tool | What it does |
 |---|---|
@@ -56,6 +56,7 @@ the log says `Workflow: EvaluateActivity: Complete value not found`.
 | `aras_describe_item_type` | Typed properties, mandatory flags, outgoing relationships |
 | `aras_search` | **Cross-type search** over several ItemTypes at once |
 | `aras_get_list_values` | Allowed values for list-backed properties |
+| `aras_how_to` | **Consult before attempting**: what works from outside, and why an error means what it means |
 
 </details>
 
@@ -100,6 +101,29 @@ both the Serilog files and the `SystemEventLog` ItemType.
 Run `aras_ping` first — it tells you what you're connected to.
 
 ---
+
+## Consult before attempting
+
+`aras_how_to` answers *"how do I do X from an external client"* and *"why this
+error"* before the model starts guessing.
+
+It deliberately does **not** index Aras's official documentation. That corpus
+describes client-side JavaScript and server-side C# — precisely the routes that
+do not work from outside — so it would confidently point at dead ends. The
+Programmer's Guide's answer to attaching a file is `aras.vault.selectFile`,
+which only exists inside the Aras client.
+
+It draws on two sources that are actually reliable:
+
+1. **Knowledge verified against a live instance**, with the exact message Aras
+   returns. `<Complete>1</Complete>`, `<ApplyItem>` applying only the first
+   element of a batch, dependent ItemTypes having to be created inside the
+   relationship — none of this is in any manual.
+2. **The instance itself** — its `UserMessage` catalogue and installed
+   `Method`s. That is the truth of *that* installation rather than a generic one.
+
+And it says so when it does not know, instead of returning the nearest match.
+A tool that answers everything is as useless as one that answers nothing.
 
 ## Design decisions worth knowing
 

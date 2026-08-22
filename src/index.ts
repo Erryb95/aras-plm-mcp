@@ -11,6 +11,7 @@ import { whereUsed, documentsOf, amlOf, changeImpact, membersOf, filesOf, WhereU
 import { AmlClient } from "./aras/aml.js";
 import { readItemRef } from "./aras/odata.js";
 import { scaricaFile, interpreta } from "./aras/files.js";
+import { cercaSapere, cercaNellIstanza, SAPERE } from "./aras/sapere.js";
 import { crossSearch, DEFAULT_SEARCH_TYPES } from "./aras/search.js";
 import { revisionsOf, newRevision, planDelete } from "./aras/revisions.js";
 import { workflowOf, activitiesOf, inBasketOf } from "./aras/workflow.js";
@@ -196,6 +197,51 @@ server.tool(
 );
 
 // ------------------------------------------------------------- relazioni/BOM
+
+server.tool(
+  "aras_how_to",
+  "CONSULTA PRIMA DI TENTARE. Risponde a 'come si fa X su Aras da un client esterno' e " +
+    "'perche' questo errore', attingendo a due fonti: il sapere verificato sul campo — cio' " +
+    "che funziona davvero da fuori, con il messaggio esatto che Aras restituisce — e l'istanza " +
+    "stessa, cioe' il catalogo UserMessage e i Method installati. NON usa la documentazione " +
+    "ufficiale Aras: quella descrive JavaScript di client e C# di server, cioe' proprio le vie " +
+    "che da un client esterno non funzionano, e seguirla porta con sicurezza su strade cieche. " +
+    "Chiamalo quando una chiamata fallisce in modo incomprensibile, o prima di tentare " +
+    "qualcosa di insolito.",
+  {
+    domanda: z.string().describe("Es. 'perche' il workflow non avanza', 'come leggo un disegno', 'related_id vuoto'"),
+    conIstanza: z.boolean().default(true).describe("Cerca anche fra i messaggi e i metodi di questa installazione"),
+  },
+  async ({ domanda, conIstanza }) =>
+    guard(async () => {
+      const voci = cercaSapere(domanda, 3);
+      const dallIstanza = conIstanza ? await cercaNellIstanza(client, domanda).catch(() => null) : null;
+
+      if (!voci.length && !dallIstanza?.messaggi.length && !dallIstanza?.metodi.length) {
+        return json({
+          trovato: false,
+          domanda,
+          nota: "Nessuna corrispondenza. Prova con le parole dell'errore ricevuto, oppure " +
+            "aras_lookup_error col testo esatto.",
+          argomentiDisponibili: SAPERE.map((v) => v.argomento),
+        });
+      }
+
+      return json({
+        domanda,
+        sapereVerificato: voci.map((v) => ({
+          argomento: v.argomento,
+          problema: v.problema,
+          risposta: v.risposta,
+          ...(v.prova ? { provaDalCampo: v.prova } : {}),
+          ...(v.tool ? { toolDaUsare: v.tool } : {}),
+        })),
+        ...(dallIstanza && (dallIstanza.messaggi.length || dallIstanza.metodi.length)
+          ? { daQuestaInstallazione: dallIstanza }
+          : {}),
+      });
+    })
+);
 
 server.tool(
   "aras_read_file",

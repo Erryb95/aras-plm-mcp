@@ -238,6 +238,33 @@ try {
   const effBad = await call("aras_check_effectivity", { partIds: [pompa.id], data: "non-una-data" });
   check("data non valida -> errore chiaro", !!effBad.errore, JSON.stringify(effBad).slice(0, 140));
 
+  // Consultare prima di tentare. Un tool che risponde a tutto e' inutile
+  // quanto uno che non risponde a niente: qui conta anche che sappia tacere.
+  console.log("\n=== Consultazione del sapere ===");
+  {
+    const casi = [
+      ["perche' il workflow non avanza, internal error", "Il workflow non avanza"],
+      ["related_id arriva vuoto sulla distinta", "Riferimenti fra elementi che arrivano vuoti"],
+      ["failed to get the transition to promote", "Promozione che sembra non esistere"],
+      ["come leggo il contenuto di un disegno pdf", "Contenuto dei file dal vault"],
+    ];
+    for (const [domanda, atteso] of casi) {
+      const r = await call("aras_how_to", { domanda, conIstanza: false });
+      check(`"${domanda.slice(0, 38)}..." -> ${atteso}`,
+        r.sapereVerificato?.[0]?.argomento === atteso,
+        JSON.stringify(r.sapereVerificato?.[0]?.argomento));
+    }
+    const fuori = await call("aras_how_to", { domanda: "come si fa il caffe", conIstanza: false });
+    check("su una domanda estranea dichiara di non sapere",
+      fuori.trovato === false && (fuori.argomentiDisponibili ?? []).length > 0,
+      JSON.stringify(fuori).slice(0, 160));
+
+    const conIst = await call("aras_how_to", { domanda: "permission denied", conIstanza: true });
+    check("consulta anche i messaggi di questa installazione",
+      !!conIst.daQuestaInstallazione || !!conIst.sapereVerificato,
+      JSON.stringify(conIst).slice(0, 160));
+  }
+
   console.log(`\n${"=".repeat(50)}`);
   console.log(`${ok} controlli passati, ${ko} falliti`);
 } finally {
