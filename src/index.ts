@@ -33,7 +33,36 @@ const schema = new SchemaCache(client);
 const aml = new AmlClient(cfg, client.tokens);
 const lists = new ListCache(client, aml);
 
-const server = new McpServer({ name: "aras-plm-mcp", version: "0.1.0" });
+const server = new McpServer(
+  { name: "aras-plm-mcp", version: "0.1.0" },
+  {
+    // Il server dice al client come lavorare. Consultare costa una chiamata;
+    // un tentativo sbagliato su un PLM costa un elemento versionato, tracciato
+    // e visibile a tutti.
+    instructions: [
+      "Server MCP per Aras Innovator PLM. Procedura: CONSULTA -> AGISCI -> VERIFICA.",
+      "",
+      "1. CONSULTA. Prima di una scrittura o di qualcosa di insolito, e SEMPRE dopo un",
+      "   errore incomprensibile, chiama aras_how_to con la domanda o col testo",
+      "   dell'errore. Copre cio' che funziona davvero da un client esterno, con il",
+      "   messaggio esatto che Aras restituisce. Per i nomi delle proprieta' usa",
+      "   aras_describe_item_type e aras_get_list_values invece di indovinare.",
+      "",
+      "2. AGISCI. Le operazioni massive hanno dryRun attivo per default: guarda cosa",
+      "   farebbero prima di farle. La cancellazione si pianifica con aras_plan_delete.",
+      "",
+      "3. VERIFICA. Rileggi l'esito con un tool diverso da quello che ha scritto.",
+      "   Un id restituito non e' la prova che l'effetto sia avvenuto. Se un campo",
+      "   'proprietaNonApplicate' compare nella risposta, Aras ha accettato la",
+      "   scrittura e scartato quelle proprieta' senza dirlo.",
+      "",
+      "Due cose che ingannano. Un diniego di permesso arriva come HTTP 500 generico,",
+      "non come 403: prima di cercare un difetto controlla aras_get_type_permissions.",
+      "Aggiornare una Part, un Document o un CAD crea una NUOVA generazione e l'id",
+      "cambia: ritrova l'elemento per item_number invece di conservare l'id.",
+    ].join("\n"),
+  }
+);
 
 /** Ogni tool passa di qui: un errore Aras diventa testo utile, non uno stack trace. */
 async function guard(fn: () => Promise<string>) {
@@ -375,7 +404,18 @@ server.tool(
       }
       if (dryRun) return json({ scritto: false, validazione: "ok", anteprima: properties });
       const created = await client.create<Record<string, unknown>>(itemType, properties);
-      return json({ scritto: true, item: created });
+      // Rileggere: Aras puo' accettare la scrittura e scartare in silenzio una
+      // proprieta' che non e' dichiarata nell'ItemType.
+      const perse = await client.proprietaNonApplicate(itemType, String(created["id"]), properties);
+      return json({
+        scritto: true,
+        item: created,
+        ...(perse.length ? {
+          proprietaNonApplicate: perse,
+          avvertenza: "Aras ha accettato la scrittura ma queste proprieta' non risultano " +
+            "sull'elemento riletto. Di solito non sono dichiarate nell'ItemType.",
+        } : {}),
+      });
     })
 );
 
@@ -404,7 +444,20 @@ server.tool(
       }
       if (dryRun) return json({ aggiornato: false, validazione: "ok", anteprima: properties });
       const updated = await client.update<Record<string, unknown>>(itemType, id, properties);
-      return json({ aggiornato: true, item: updated });
+      // Su un ItemType versionabile l'update crea una nuova generazione con un id
+      // nuovo: rileggere quello vecchio restituirebbe i valori di prima, e ogni
+      // proprieta' risulterebbe "non applicata". Si verifica l'id restituito.
+      const idVerifica = String(updated["id"] ?? id);
+      const perse = await client.proprietaNonApplicate(itemType, idVerifica, properties);
+      return json({
+        aggiornato: true,
+        item: updated,
+        ...(perse.length ? {
+          proprietaNonApplicate: perse,
+          avvertenza: "Aras ha risposto con successo ma queste proprieta' non risultano " +
+            "sull'elemento riletto: probabilmente non sono dichiarate nell'ItemType.",
+        } : {}),
+      });
     })
 );
 
@@ -1039,7 +1092,8 @@ server.tool(
     make_buy: z.string().optional().describe("Make oppure Buy"),
     unit: z.string().optional().describe("EA, IN, FT, MM, CM, M"),
     classification: z.string().optional(),
-    cost: z.number().optional(),
+    cost: z.number().optional()
+      .describe("ATTENZIONE: su Part 'cost' e' calcolata dal rollup. Passarla non da' errore e non ha effetto."),
     sottoAssieme: z.string().optional().describe("item_number dell'assieme padre"),
     quantita: z.number().default(1),
     riferimento: z.string().optional().describe("reference_designator in distinta"),
@@ -1066,8 +1120,18 @@ server.tool(
       }
       if (a.dryRun) return json({ creata: false, validazione: "ok", anteprima: props });
 
-      return json(await creaPart(client, props as Record<string, unknown> & { item_number: string },
-        a.sottoAssieme ? { itemNumber: a.sottoAssieme, quantita: a.quantita, riferimento: a.riferimento } : undefined));
+      const esito = await creaPart(client, props as Record<string, unknown> & { item_number: string },
+        a.sottoAssieme ? { itemNumber: a.sottoAssieme, quantita: a.quantita, riferimento: a.riferimento } : undefined);
+      const idNuovo = (esito as Record<string, unknown>)["id"];
+      const perse = idNuovo ? await client.proprietaNonApplicate("Part", String(idNuovo), props) : [];
+      return json({
+        ...esito,
+        ...(perse.length ? {
+          proprietaNonApplicate: perse,
+          avvertenza: "Aras ha creato la Part ma queste proprieta' non risultano rilette. " +
+            "Su Part, 'cost' e' calcolata dal rollup e la scrittura diretta viene ignorata.",
+        } : {}),
+      });
     })
 );
 

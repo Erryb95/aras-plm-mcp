@@ -110,6 +110,39 @@ export class ArasClient {
     return this.request<T>("PATCH", `${ODATA(this.cfg)}/${encodeURIComponent(itemType)}('${id}')`, body);
   }
 
+  /**
+   * Rilegge un elemento e dice quali proprieta' richieste NON sono arrivate.
+   *
+   * Aras puo' accettare una scrittura, rispondere 200, aggiornare modified_on e
+   * scartare in silenzio una proprieta' che non e' dichiarata nell'ItemType: e'
+   * successo a x/y su Workflow Map Activity. Senza rileggere non c'e' modo di
+   * accorgersene, e il chiamante crede di aver scritto qualcosa che non c'e'.
+   */
+  async proprietaNonApplicate(
+    itemType: string,
+    id: string,
+    richieste: Record<string, unknown>
+  ): Promise<string[]> {
+    const nomi = Object.keys(richieste).filter((k) => !SISTEMA.has(k));
+    if (!nomi.length) return [];
+
+    let letto: Record<string, unknown>;
+    try {
+      letto = await this.getById<Record<string, unknown>>(itemType, id, ["id", ...nomi]);
+    } catch {
+      return []; // non poter verificare non e' una prova di fallimento
+    }
+
+    return nomi.filter((k) => {
+      const atteso = richieste[k];
+      if (atteso === null || atteso === undefined) return false;
+      // I riferimenti a elemento tornano come annotazione, non come valore.
+      const effettivo = letto[k] ?? letto[`${k}@aras.id`];
+      if (effettivo === undefined) return true;
+      return normalizzaValore(effettivo) !== normalizzaValore(atteso);
+    });
+  }
+
   private assertWritable(op: string): void {
     if (this.cfg.readOnly) {
       throw new ArasError(
@@ -179,3 +212,24 @@ export class ArasClient {
   }
 }
 
+
+/** Proprieta' che Aras gestisce da se': confrontarle non ha senso. */
+const SISTEMA = new Set([
+  "id", "config_id", "created_by_id", "created_on", "modified_by_id", "modified_on",
+  "generation", "is_current", "is_released", "keyed_name", "major_rev", "minor_rev",
+  "new_version", "state", "current_state", "permission_id", "locked_by_id",
+]);
+
+/**
+ * Confronto tollerante: Aras restituisce i booleani come "1"/"0", i numeri come
+ * stringhe, e normalizza gli spazi. Un confronto stretto darebbe falsi allarmi.
+ */
+function normalizzaValore(v: unknown): string {
+  if (typeof v === "boolean") return v ? "1" : "0";
+  if (typeof v === "number") return String(v);
+  const s = String(v).trim();
+  if (s === "true") return "1";
+  if (s === "false") return "0";
+  const n = Number(s);
+  return Number.isFinite(n) && s !== "" ? String(n) : s;
+}

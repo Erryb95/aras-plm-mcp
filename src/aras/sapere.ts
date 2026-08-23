@@ -172,6 +172,20 @@ export const SAPERE: Voce[] = [
     tool: "aras_plan_delete",
   },
   {
+    argomento: "Proprieta' scritte che spariscono senza errore",
+    chiavi: ["cost", "costo", "rollup", "calcolata", "sparita", "non applicata", "silenzio", "ignorata"],
+    problema: "Una proprieta' dichiarata viene accettata in scrittura ma rileggendola non c'e'.",
+    risposta:
+      "Aras ha proprieta' che accetta e ignora. Su Part, 'cost' e' calcolata dal rollup " +
+      "('PE: rollup all parts in DB'): passarla in creazione non da' errore e non ha effetto. " +
+      "Nessun messaggio, nessun codice: il campo resta vuoto. E' un caso diverso da x/y su " +
+      "Workflow Map Activity, che non sono nemmeno dichiarate. La difesa e' la stessa: " +
+      "rileggere. aras_create_item, aras_update_item e aras_create_part restituiscono " +
+      "'proprietaNonApplicate' quando succede.",
+    prova: "cost: 142.5 in creazione -> campo vuoto sia in OData sia nell'interfaccia Aras",
+    tool: "aras_create_item, aras_update_item, aras_create_part",
+  },
+  {
     argomento: "Coordinate dei nodi di una mappa di workflow",
     chiavi: ["x", "y", "coordinate", "nodi", "designer", "sovrapposti", "grafo", "workflow map activity"],
     problema: "La mappa creata da fuori disegna tutti i nodi impilati nell'origine.",

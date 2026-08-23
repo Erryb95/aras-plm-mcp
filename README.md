@@ -134,6 +134,13 @@ politely while it is `true`.
 **`dryRun` defaults to *on* for bulk operations.** `aras_replace_component` and
 `aras_bulk_update` show you the affected rows and change nothing until you ask.
 
+**Writes are read back.** `aras_create_item`, `aras_update_item` and
+`aras_create_part` re-read the item after writing and return
+`proprietaNonApplicate` for anything that did not land. Aras accepts and silently
+ignores some properties — `cost` on a `Part` is computed by the rollup, so
+setting it returns no error and has no effect. Without reading back, the caller
+believes it wrote something that is not there.
+
 **Deletion is planned before it is done.** `aras_plan_delete` reports what
 references the item and refuses when something does. Where it could not verify a
 relationship it returns `-1` rather than pretending the relationship is empty — an

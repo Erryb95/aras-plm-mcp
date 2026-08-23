@@ -133,6 +133,28 @@ empty string and letting the caller assume the page was blank.
 
 ---
 
+## Writes that vanish without an error
+
+Aras has properties it accepts and ignores. On `Part`, `cost` is computed by the
+rollup (`PE: rollup all parts in DB`): passing it on creation returns no error
+and has no effect — the field simply stays empty, in OData and in the Aras UI
+alike. Fifteen parts were created with an explicit `cost` before anyone noticed.
+
+This is a different failure from `x`/`y` on `Workflow Map Activity`, which are
+not declared properties at all. Here the property *is* declared and writable in
+principle; something server-side owns it.
+
+The defence is the same for both, and it is now built in: after a write,
+`aras_create_item`, `aras_update_item` and `aras_create_part` re-read the item
+and return **`proprietaNonApplicate`** listing anything that did not land.
+
+Two details that make it usable rather than noisy. Values are compared
+tolerantly — Aras returns booleans as `"1"`/`"0"` and numbers as strings, so a
+strict comparison would cry wolf on every write. And on a versionable ItemType
+an update creates a *new generation with a new id*; verifying against the id you
+wrote to would report every property as lost, so the check follows the id the
+update returns.
+
 ## Verified limits
 
 Five things cannot be done from an external client. Each affected tool declares
