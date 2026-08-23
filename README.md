@@ -218,7 +218,7 @@ node test-writepath.mjs   # real writes, created and removed
 
 ## What does not work, and why
 
-Four things are unreachable from an external client. **This is not an oversight**,
+Five things are unreachable from an external client. **This is not an oversight**,
 and each affected tool says so and points at the alternative instead of failing
 opaquely.
 
@@ -228,6 +228,7 @@ opaquely.
 | Effectivity expressions on a BOM | `definition` is an undocumented XML dialect; Aras replies `'named-constant' or 'constant' node must be presented` |
 | Executing Query Builder queries | No AML action runs a saved `qry_QueryDefinition` from outside |
 | JavaScript-based reports | `Method type not supported: JavaScript` — it is client code |
+| Node coordinates on a workflow map | `x`/`y` are not declared properties of `Workflow Map Activity`; writing them returns 200 and changes nothing |
 
 Reading, on the other hand, works and is verified. `aras_read_file` downloads
 the content through the OData media resource (`File('<id>')/$value`), falling

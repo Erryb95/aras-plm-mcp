@@ -172,11 +172,24 @@ export const SAPERE: Voce[] = [
     tool: "aras_plan_delete",
   },
   {
+    argomento: "Coordinate dei nodi di una mappa di workflow",
+    chiavi: ["x", "y", "coordinate", "nodi", "designer", "sovrapposti", "grafo", "workflow map activity"],
+    problema: "La mappa creata da fuori disegna tutti i nodi impilati nell'origine.",
+    risposta:
+      "x e y NON sono proprieta' dichiarate di Workflow Map Activity: describe_item_type ne " +
+      "elenca 27 e queste non ci sono. Aras pero' le memorizza e le restituisce in lettura — " +
+      "una riga di serie ha x=244, y=95. Scriverle da fuori non da' errore e non ha effetto: " +
+      "l'AML risponde 200, aggiorna modified_on, e lascia il default 10,10. Il designer di " +
+      "Aras le scrive per una via privata. Rimedio: disporre i nodi una volta a mano; il " +
+      "processo funziona comunque.",
+    prova: "aras_update_item -> proprietaSconosciute: [\"x\",\"y\"]  ·  AML edit -> 200 e valore invariato",
+  },
+  {
     argomento: "Cosa non si puo' fare da un client esterno",
     chiavi: ["limite", "impossibile", "non funziona", "query builder", "report javascript", "effettivita"],
     problema: "Quali sono i limiti reali, verificati.",
     risposta:
-      "Quattro. (1) Caricare file nel vault. (2) Espressioni di effettivita' su distinta: " +
+      "Cinque. (1) Caricare file nel vault (la LETTURA invece funziona). (2) Espressioni di effettivita' su distinta: " +
       "definition e' un XML non documentato. (3) Eseguire le query del Query Builder: nessuna " +
       "azione AML le esegue da fuori. (4) Report basati su JavaScript: e' codice di client. " +
       "Il tool corrispondente dichiara il limite e indica un'alternativa.",

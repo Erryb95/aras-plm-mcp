@@ -2,7 +2,7 @@
 
 What live testing against a real Aras Innovator 2025 instance actually surfaced:
 the defects it found in this server, the behaviours of Aras that cost hours, one
-limit that turned out not to be one, and three that genuinely are.
+limit that turned out not to be one, and four that genuinely are.
 
 This file exists because a project that only publishes what works is not telling
 you enough to trust it.
@@ -135,7 +135,7 @@ empty string and letting the caller assume the page was blank.
 
 ## Verified limits
 
-Four things cannot be done from an external client. Each affected tool declares
+Five things cannot be done from an external client. Each affected tool declares
 the limit and points at an alternative instead of failing opaquely.
 
 | Limit | Evidence |
@@ -144,9 +144,17 @@ the limit and points at an alternative instead of failing opaquely.
 | Effectivity expressions on a BOM | `definition` is an undocumented XML dialect; Aras answers `'named-constant' or 'constant' node must be presented` |
 | Executing Query Builder queries | No AML action runs a saved query definition from outside |
 | JavaScript-based reports | `Method type not supported: JavaScript` — it is client code |
+| Node coordinates on a workflow map | `x` and `y` are **not declared properties** of `Workflow Map Activity` — `describe_item_type` lists 27 and neither is among them. Aras stores and returns them anyway (a stock row reads `x=244, y=95`), but writing them from outside returns 200, bumps `modified_on`, and leaves the default `10,10`. The designer writes them by a private path |
 
-Only **uploading** is blocked. Reading file content works and is verified —
-see the section above.
+Only **uploading** is blocked. Reading file content works and is verified — see
+the section above.
+
+The last row is the inverse of the annotation trap. There, data existed under a
+name you had to know; here it exists under a plain name the schema denies. A
+workflow map built from outside therefore always renders with its nodes stacked
+at the origin — the process runs correctly, but someone has to drag the boxes
+apart once in the designer. Found by opening the map in Aras's own editor, which
+is the sort of thing a self-check cannot see.
 
 ---
 
